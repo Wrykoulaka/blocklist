@@ -2,4 +2,4 @@ wget -O filter.list https://raw.githubusercontent.com/Adamm00/IPSet_ASUS/refs/he
 && echo "\nhttps://iplists.firehol.org/files/firehol_abusers_1d.netset" >> filter.list \
 && git add . \
 && git commit -m "Update list" \
-&& git push
+&& git push --force
