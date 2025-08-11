@@ -36,6 +36,6 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add adaway/unified_hosts.txt adaway/sources.txt skynet/filter.list
+          git add adaway/unified_hosts.txt adaway/sources.txt adaway/counts_graph.png skynet/filter.list
           git commit -m "Update hosts and filter files" || echo "No changes to commit"
           git push
