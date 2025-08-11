@@ -3,6 +3,7 @@ name: Scheduled Update
 on:
   schedule:
     - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:        # Allows manual ru
 
 jobs:
   build:
