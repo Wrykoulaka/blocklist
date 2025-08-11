@@ -1,9 +1,8 @@
 name: Scheduled Update
-
 on:
   schedule:
     - cron: '0 */6 * * *'  # Every 6 hours
-  workflow_dispatch:        # Allows manual ru
+  workflow_dispatch:
 
 jobs:
   build:
@@ -21,21 +20,30 @@ jobs:
       - name: Install dependencies
         run: pip install requests matplotlib
 
-      - name: Run Python script
+      - name: Run main.py script
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         working-directory: adaway
         run: python3 main.py
 
+      - name: Run plot.py script
+        working-directory: adaway
+        run: python3 plot.py
+
+
       - name: Run Bash script
         working-directory: skynet
         run: bash update.sh
 
+      - name: Run plot.py script
+        working-directory: skynet
+        run: python3 plot.py
+        
       - name: Commit updated files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add adaway/unified_hosts.txt adaway/sources.txt adaway/counts_graph.png skynet/filter.list
+          git add adaway skynet
           git commit -m "Update hosts and filter files" || echo "No changes to commit"
           git push
