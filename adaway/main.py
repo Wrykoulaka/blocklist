@@ -118,6 +118,7 @@ def main():
     try:
         urls = load_urls(SOURCES_FILE)
         all_domains = set()
+        domains_per_source = {}
 
         with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
             futures = {executor.submit(download_list, url): url for url in urls}
@@ -127,14 +128,22 @@ def main():
                     _, text = future.result()
                     if text:
                         domains = parse_hosts(text)
+                        domains_per_source[url] = len(domains)
                         all_domains.update(domains)
+                    else:
+                        domains_per_source[url] = 0
                 except Exception as e:
                     msg = f"[ERROR] Exception processing {url}: {e}"
                     print(msg)
                     send_telegram_message(msg)
+                    domains_per_source[url] = 0
 
         total_unique = len(all_domains)
         released_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+        print("Entries per source:")
+        for source_url, count in domains_per_source.items():
+            print(f"  {source_url} -> {count} domains")
 
         with open("unified_hosts.txt", "w", encoding="utf-8") as f:
             # Write header
@@ -143,6 +152,10 @@ def main():
             f.write(f"# Last updated: {released_time}\n")
             f.write("# Expires: 6 hours\n")
             f.write(f"# Number of unique domains: {total_unique}\n")
+            f.write("#\n")
+            f.write("# Domains per source:\n")
+            for source_url, count in domains_per_source.items():
+                f.write(f"# {source_url} -> {count} domains\n")
             f.write("#\n\n")
             # Write domains in hosts format
             for domain in sorted(all_domains):
@@ -152,7 +165,7 @@ def main():
 
     except Exception:
         error_details = "".join(traceback.format_exception(*sys.exc_info()))
-        send_telegram_message(f"⚠️ *Script Error*\n```\n{error_details}\n```")
+        send_telegram_message(f"Github action blocklist error\n⚠️ *Script Error*\n```\n{error_details}\n```")
         raise
 
 if __name__ == "__main__":
