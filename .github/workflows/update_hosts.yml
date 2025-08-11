@@ -25,10 +25,12 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python3 adaway/main.py
+        working-directory: adaway
+        run: python3 main.py
 
       - name: Run Bash script
-        run: bash skynet/update.sh
+        working-directory: skynet
+        run: bash update.sh
 
       - name: Commit updated files
         run: |
