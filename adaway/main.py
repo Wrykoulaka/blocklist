@@ -7,6 +7,8 @@ import traceback
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
+import csv
+import matplotlib.pyplot as plt
 
 # Load environment variables
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -17,8 +19,10 @@ MAX_THREADS = 8  # Number of parallel downloads
 
 SOURCE_LIST_URL = "https://v.firebog.net/hosts/lists.php?type=tick"
 
+COUNTS_HISTORY_FILE = "counts_history.csv"
+GRAPH_FILE = "counts_graph.png"
+
 def send_telegram_message(message):
-    """Send a message to Telegram using the bot token and chat ID."""
     if not TELEGRAM_BOT_TOKEN or not CHAT_ID:
         print("[WARNING] Telegram bot token or chat ID not set. Skipping notification.")
         return
@@ -31,27 +35,23 @@ def send_telegram_message(message):
         print(f"[ERROR] Failed to send Telegram message: {e}")
 
 def update_sources_file():
-    """Fetch the list from SOURCE_LIST_URL, overwrite sources.txt, then append additional_sources.txt."""
     try:
         print(f"Fetching source list from {SOURCE_LIST_URL}")
         resp = requests.get(SOURCE_LIST_URL, timeout=20)
         resp.raise_for_status()
         content = resp.text
         
-        # Write main sources to SOURCES_FILE
         with open(SOURCES_FILE, "w", encoding="utf-8") as f:
             f.write(content)
         print(f"Updated {SOURCES_FILE} with content from {SOURCE_LIST_URL}")
 
-        # Append additional sources if file exists
         additional_file = "additional_sources.txt"
         if os.path.isfile(additional_file):
             with open(additional_file, "r", encoding="utf-8") as af, open(SOURCES_FILE, "a", encoding="utf-8") as f:
                 lines = af.readlines()
-                # Filter out empty lines and comments before appending
                 lines_to_add = [line for line in lines if line.strip() and not line.startswith("#")]
                 if lines_to_add:
-                    f.write("\n")  # Ensure a newline before appending
+                    f.write("\n")  # newline before appending
                     f.writelines(lines_to_add)
             print(f"Appended entries from {additional_file} to {SOURCES_FILE}")
         else:
@@ -64,7 +64,6 @@ def update_sources_file():
         sys.exit(1)
 
 def load_urls(file_path):
-    """Load URLs from a text file, skipping comments and blanks."""
     urls = []
     try:
         with open(file_path, "r", encoding="utf-8") as f:
@@ -80,7 +79,6 @@ def load_urls(file_path):
     return urls
 
 def download_list(url):
-    """Download a hosts or adblock list from a given URL."""
     try:
         print(f"Downloading: {url}")
         resp = requests.get(url, timeout=20)
@@ -93,65 +91,82 @@ def download_list(url):
         return url, ""
 
 def normalize_adblock_line(line):
-    """
-    Convert Adblock-style rules to plain domain if possible.
-    Examples:
-    - ||domain.com^  -> domain.com
-    - |http://domain.com| -> domain.com
-    Returns domain string or None if not recognized.
-    """
-    # Remove common Adblock prefixes/suffixes:
-    # Start with ||
     if line.startswith("||"):
-        domain = line[2:]
-        domain = domain.split("^")[0]
-        domain = domain.strip()
+        domain = line[2:].split("^")[0].strip()
         if domain:
             return domain.lower()
-    # Start with single | (rare)
     if line.startswith("|"):
         domain = line.lstrip("|").rstrip("|")
-        # Remove scheme if present
         domain = re.sub(r"^https?://", "", domain)
-        domain = domain.split("^")[0]
-        domain = domain.strip()
+        domain = domain.split("^")[0].strip()
         if domain:
             return domain.lower()
-    # Plain domain or wildcard rules (skip wildcards)
     if line and "*" not in line and "/" not in line and "|" not in line and "^" not in line:
-        # Basic domain validation
         if re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", line):
             return line.lower()
     return None
 
 def parse_hosts(text):
-    """Extract valid domains from a hosts file or adblock-style list."""
     domains = set()
     for line in StringIO(text):
         line = line.strip()
         if not line or line.startswith("#"):
             continue
         parts = line.split()
-        # Normal hosts entries: "0.0.0.0 domain" or "127.0.0.1 domain"
         if len(parts) >= 2 and parts[0] in ["0.0.0.0", "127.0.0.1"]:
-            domain = parts[1].lower()
-            domains.add(domain)
+            domains.add(parts[1].lower())
             continue
-        # Sometimes a single domain per line (some adblock lists)
         if len(parts) == 1:
-            domain_candidate = normalize_adblock_line(parts[0])
-            if domain_candidate:
-                domains.add(domain_candidate)
+            candidate = normalize_adblock_line(parts[0])
+            if candidate:
+                domains.add(candidate)
                 continue
-        # If line looks like an adblock filter (||domain^)
-        domain_candidate = normalize_adblock_line(line)
-        if domain_candidate:
-            domains.add(domain_candidate)
+        candidate = normalize_adblock_line(line)
+        if candidate:
+            domains.add(candidate)
     return domains
+
+def log_count_to_history(date_str, count):
+    file_exists = os.path.isfile(COUNTS_HISTORY_FILE)
+    with open(COUNTS_HISTORY_FILE, "a", newline="", encoding="utf-8") as csvfile:
+        writer = csv.writer(csvfile)
+        # Write header if file did not exist
+        if not file_exists:
+            writer.writerow(["date", "unique_domains"])
+        writer.writerow([date_str, count])
+
+def generate_graph():
+    dates = []
+    counts = []
+    if not os.path.isfile(COUNTS_HISTORY_FILE):
+        print(f"No history file {COUNTS_HISTORY_FILE} found, skipping graph generation.")
+        return
+    with open(COUNTS_HISTORY_FILE, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            try:
+                dt = datetime.strptime(row["date"], "%Y-%m-%d")
+                cnt = int(row["unique_domains"])
+                dates.append(dt)
+                counts.append(cnt)
+            except Exception:
+                continue
+    if not dates:
+        print("No data to plot.")
+        return
+    plt.figure(figsize=(8, 4))
+    plt.plot(dates, counts, marker='o', linestyle='-', color='blue')
+    plt.title("Unique Domains in unified_hosts.txt Over Time")
+    plt.xlabel("Date")
+    plt.ylabel("Number of Unique Domains")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(GRAPH_FILE)
+    plt.close()
+    print(f"Graph saved to {GRAPH_FILE}")
 
 def main():
     try:
-        # Update sources.txt at the start from the URL and append additional entries
         update_sources_file()
 
         urls = load_urls(SOURCES_FILE)
@@ -178,13 +193,13 @@ def main():
 
         total_unique = len(all_domains)
         released_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        date_str = datetime.utcnow().strftime("%Y-%m-%d")
 
         print("Entries per source:")
         for source_url, count in domains_per_source.items():
             print(f"  {source_url} -> {count} domains")
 
         with open("unified_hosts.txt", "w", encoding="utf-8") as f:
-            # Write header
             f.write("# Title: Wakuvilla/hosts\n")
             f.write("# Description: Merged hosts from reputable sources\n")
             f.write(f"# Sources list updated dynamically from: {SOURCE_LIST_URL}\n")
@@ -196,11 +211,16 @@ def main():
             for source_url, count in domains_per_source.items():
                 f.write(f"# {source_url} -> {count} domains\n")
             f.write("#\n\n")
-            # Write domains in hosts format
             for domain in sorted(all_domains):
                 f.write(f"0.0.0.0 {domain}\n")
 
         print(f"File 'unified_hosts.txt' generated with {total_unique} domains.")
+
+        # Log count to CSV history
+        log_count_to_history(date_str, total_unique)
+
+        # Generate the graph PNG
+        generate_graph()
 
     except Exception:
         error_details = "".join(traceback.format_exception(*sys.exc_info()))
