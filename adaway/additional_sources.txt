@@ -1,8 +1,8 @@
 # Steven Black 
-https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+# https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
 
 # Someone Who Cares
-https://someonewhocares.org/hosts/zero/hosts
+# https://someonewhocares.org/hosts/zero/hosts
 
 # OISD
-https://big.oisd.nl
+# https://big.oisd.nl
