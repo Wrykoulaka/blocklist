@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+import os
+import subprocess
+import re
+import csv
+from datetime import datetime, timedelta
+import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import matplotlib.pyplot as plt
+
+FILTER_FILE = "filter.list"
+
+COUNTS_HISTORY_FILE = "ip_counts_history.csv"
+GRAPH_FILE = "ip_counts_graph.png"
+
+MAX_THREADS = 8
+
+def fetch_url_content(url):
+    try:
+        print(f"Fetching {url}")
+        resp = requests.get(url, timeout=20)
+        resp.raise_for_status()
+        return resp.text
+    except Exception as e:
+        print(f"[ERROR] Failed to fetch {url}: {e}")
+        return ""
+
+def extract_ips_from_text(text):
+    ip_pattern = re.compile(
+        r"\b(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}"
+        r"(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\b"
+    )
+    return set(ip_pattern.findall(text))
+
+def log_count_to_history(date_str, unique_count):
+    rows = []
+    if os.path.isfile(COUNTS_HISTORY_FILE):
+        with open(COUNTS_HISTORY_FILE, "r", encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
+    threshold_date = datetime.strptime(date_str, "%Y-%m-%d") - timedelta(days=30)
+    filtered_rows = [r for r in rows if datetime.strptime(r["date"], "%Y-%m-%d") >= threshold_date]
+
+    updated = False
+    for r in filtered_rows:
+        if r["date"] == date_str:
+            r["unique_ips"] = str(unique_count)
+            updated = True
+            break
+    if not updated:
+        filtered_rows.append({"date": date_str, "unique_ips": str(unique_count)})
+
+    with open(COUNTS_HISTORY_FILE, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["date", "unique_ips"])
+        writer.writeheader()
+        writer.writerows(sorted(filtered_rows, key=lambda x: x["date"]))
+
+def generate_graph():
+    dates, counts = [], []
+    if not os.path.isfile(COUNTS_HISTORY_FILE):
+        print(f"No history file {COUNTS_HISTORY_FILE} found, skipping graph generation.")
+        return
+    with open(COUNTS_HISTORY_FILE, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            try:
+                dt = datetime.strptime(row["date"], "%Y-%m-%d")
+                cnt = int(row["unique_ips"])
+                dates.append(dt)
+                counts.append(cnt)
+            except Exception:
+                continue
+    if not dates:
+        print("No data to plot.")
+        return
+    plt.figure(figsize=(8, 4))
+    plt.plot(dates, counts, marker='o', linestyle='-', color='green')
+    plt.title("Unique IP Addresses in Fetched Lists Over Time")
+    plt.xlabel("Date")
+    plt.ylabel("Number of Unique IPs")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(GRAPH_FILE)
+    plt.close()
+    print(f"Graph saved to {GRAPH_FILE}")
+
+def main():
+    try:      
+        if not os.path.isfile(FILTER_FILE):
+            print(f"No filter list file found: {FILTER_FILE}")
+            return
+
+        with open(FILTER_FILE, "r", encoding="utf-8") as f:
+            urls = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+
+        unique_ips = set()
+        with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+            futures = {executor.submit(fetch_url_content, url): url for url in urls}
+            for future in as_completed(futures):
+                content = future.result()
+                if content:
+                    ips = extract_ips_from_text(content)
+                    unique_ips.update(ips)
+
+        count = len(unique_ips)
+        date_str = datetime.utcnow().strftime("%Y-%m-%d")
+        print(f"Total unique IP addresses found: {count}")
+
+        log_count_to_history(date_str, count)
+        generate_graph()
+
+    except Exception as e:
+        print(f"Error: {e}")
+        raise
+
+if __name__ == "__main__":
+    main()
