@@ -160,36 +160,6 @@ def log_count_to_history(date_str, count):
         for row in history:
             writer.writerow({"date": row["date"], "unique_domains": row["unique_domains"]})
 
-def generate_graph():
-    dates = []
-    counts = []
-    if not os.path.isfile(COUNTS_HISTORY_FILE):
-        print(f"No history file {COUNTS_HISTORY_FILE} found, skipping graph generation.")
-        return
-    with open(COUNTS_HISTORY_FILE, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            try:
-                dt = datetime.strptime(row["date"], "%Y-%m-%d")
-                cnt = int(row["unique_domains"])
-                dates.append(dt)
-                counts.append(cnt)
-            except Exception:
-                continue
-    if not dates:
-        print("No data to plot.")
-        return
-    plt.figure(figsize=(8, 4))
-    plt.plot(dates, counts, marker='o', linestyle='-', color='blue')
-    plt.title("Unique Domains in unified_hosts.txt Over Time")
-    plt.xlabel("Date")
-    plt.ylabel("Number of Unique Domains")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.savefig(GRAPH_FILE)
-    plt.close()
-    print(f"Graph saved to {GRAPH_FILE}")
-
 def main():
     try:
         update_sources_file()
@@ -243,9 +213,6 @@ def main():
 
         # Log count to CSV history (last 30 days only)
         log_count_to_history(date_str, total_unique)
-
-        # Generate the graph PNG
-        generate_graph()
 
     except Exception:
         error_details = "".join(traceback.format_exception(*sys.exc_info()))
