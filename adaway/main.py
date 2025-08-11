@@ -31,15 +31,32 @@ def send_telegram_message(message):
         print(f"[ERROR] Failed to send Telegram message: {e}")
 
 def update_sources_file():
-    """Fetch the list from SOURCE_LIST_URL and overwrite sources.txt with it."""
+    """Fetch the list from SOURCE_LIST_URL, overwrite sources.txt, then append additional_sources.txt."""
     try:
         print(f"Fetching source list from {SOURCE_LIST_URL}")
         resp = requests.get(SOURCE_LIST_URL, timeout=20)
         resp.raise_for_status()
         content = resp.text
+        
+        # Write main sources to SOURCES_FILE
         with open(SOURCES_FILE, "w", encoding="utf-8") as f:
             f.write(content)
         print(f"Updated {SOURCES_FILE} with content from {SOURCE_LIST_URL}")
+
+        # Append additional sources if file exists
+        additional_file = "additional_sources.txt"
+        if os.path.isfile(additional_file):
+            with open(additional_file, "r", encoding="utf-8") as af, open(SOURCES_FILE, "a", encoding="utf-8") as f:
+                lines = af.readlines()
+                # Filter out empty lines and comments before appending
+                lines_to_add = [line for line in lines if line.strip() and not line.startswith("#")]
+                if lines_to_add:
+                    f.write("\n")  # Ensure a newline before appending
+                    f.writelines(lines_to_add)
+            print(f"Appended entries from {additional_file} to {SOURCES_FILE}")
+        else:
+            print(f"No additional sources file found at {additional_file}, skipping append.")
+
     except Exception as e:
         error_message = f"[ERROR] Failed to update sources file from {SOURCE_LIST_URL}: {e}"
         print(error_message)
@@ -134,7 +151,7 @@ def parse_hosts(text):
 
 def main():
     try:
-        # Update sources.txt at the start from the URL
+        # Update sources.txt at the start from the URL and append additional entries
         update_sources_file()
 
         urls = load_urls(SOURCES_FILE)
