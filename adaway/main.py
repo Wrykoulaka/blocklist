@@ -4,7 +4,7 @@ import requests
 from io import StringIO
 import sys
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 import csv
@@ -127,13 +127,38 @@ def parse_hosts(text):
     return domains
 
 def log_count_to_history(date_str, count):
-    file_exists = os.path.isfile(COUNTS_HISTORY_FILE)
-    with open(COUNTS_HISTORY_FILE, "a", newline="", encoding="utf-8") as csvfile:
-        writer = csv.writer(csvfile)
-        # Write header if file did not exist
-        if not file_exists:
-            writer.writerow(["date", "unique_domains"])
-        writer.writerow([date_str, count])
+    history = []
+    cutoff_date = datetime.utcnow().date() - timedelta(days=30)
+
+    if os.path.isfile(COUNTS_HISTORY_FILE):
+        with open(COUNTS_HISTORY_FILE, "r", encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                try:
+                    row_date = datetime.strptime(row["date"], "%Y-%m-%d").date()
+                    if row_date >= cutoff_date:
+                        history.append({"date": row["date"], "unique_domains": int(row["unique_domains"])})
+                except Exception:
+                    continue
+
+    # Update or add today's entry
+    today_found = False
+    for entry in history:
+        if entry["date"] == date_str:
+            entry["unique_domains"] = count
+            today_found = True
+            break
+    if not today_found:
+        history.append({"date": date_str, "unique_domains": count})
+
+    history.sort(key=lambda x: x["date"])
+
+    with open(COUNTS_HISTORY_FILE, "w", newline="", encoding="utf-8") as csvfile:
+        fieldnames = ["date", "unique_domains"]
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in history:
+            writer.writerow({"date": row["date"], "unique_domains": row["unique_domains"]})
 
 def generate_graph():
     dates = []
@@ -216,7 +241,7 @@ def main():
 
         print(f"File 'unified_hosts.txt' generated with {total_unique} domains.")
 
-        # Log count to CSV history
+        # Log count to CSV history (last 30 days only)
         log_count_to_history(date_str, total_unique)
 
         # Generate the graph PNG
