@@ -1,0 +1,20 @@
+# Steven Black’s master hosts list
+https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+
+# Developer Dan’s extended ads & tracking list
+https://www.github.developerdan.com/hosts/lists/ads-and-tracking-extended.txt
+
+# Someone Who Cares minimal list
+https://someonewhocares.org/hosts/zero/hosts
+
+# AdAway mobile ad blocker list
+https://adaway.org/hosts.txt
+
+# Firebog Easylist
+https://v.firebog.net/hosts/Easylist.txt
+
+# Firebog AdGuard DNS
+https://v.firebog.net/hosts/AdguardDNS.txt
+
+# OISD full list
+https://big.oisd.nl/
