@@ -15,6 +15,8 @@ SOURCES_FILE = os.getenv("SOURCES_FILE", "sources.txt")  # Default: sources.txt 
 
 MAX_THREADS = 8  # Number of parallel downloads
 
+SOURCE_LIST_URL = "https://v.firebog.net/hosts/lists.php?type=tick"
+
 def send_telegram_message(message):
     """Send a message to Telegram using the bot token and chat ID."""
     if not TELEGRAM_BOT_TOKEN or not CHAT_ID:
@@ -27,6 +29,22 @@ def send_telegram_message(message):
         resp.raise_for_status()
     except Exception as e:
         print(f"[ERROR] Failed to send Telegram message: {e}")
+
+def update_sources_file():
+    """Fetch the list from SOURCE_LIST_URL and overwrite sources.txt with it."""
+    try:
+        print(f"Fetching source list from {SOURCE_LIST_URL}")
+        resp = requests.get(SOURCE_LIST_URL, timeout=20)
+        resp.raise_for_status()
+        content = resp.text
+        with open(SOURCES_FILE, "w", encoding="utf-8") as f:
+            f.write(content)
+        print(f"Updated {SOURCES_FILE} with content from {SOURCE_LIST_URL}")
+    except Exception as e:
+        error_message = f"[ERROR] Failed to update sources file from {SOURCE_LIST_URL}: {e}"
+        print(error_message)
+        send_telegram_message(error_message)
+        sys.exit(1)
 
 def load_urls(file_path):
     """Load URLs from a text file, skipping comments and blanks."""
@@ -116,6 +134,9 @@ def parse_hosts(text):
 
 def main():
     try:
+        # Update sources.txt at the start from the URL
+        update_sources_file()
+
         urls = load_urls(SOURCES_FILE)
         all_domains = set()
         domains_per_source = {}
@@ -149,6 +170,7 @@ def main():
             # Write header
             f.write("# Title: Wakuvilla/hosts\n")
             f.write("# Description: Merged hosts from reputable sources\n")
+            f.write(f"# Sources list updated dynamically from: {SOURCE_LIST_URL}\n")
             f.write(f"# Last updated: {released_time}\n")
             f.write("# Expires: 6 hours\n")
             f.write(f"# Number of unique domains: {total_unique}\n")
