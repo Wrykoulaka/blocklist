@@ -7,6 +7,27 @@ import matplotlib.pyplot as plt
 
 COUNTS_HISTORY_FILE = "counts_history.csv"
 GRAPH_FILE = "counts_graph.png"
+MAX_ENTRIES = 60
+
+
+def trim_history():
+    if not os.path.isfile(COUNTS_HISTORY_FILE):
+        return
+
+    with open(COUNTS_HISTORY_FILE, "r", encoding="utf-8") as f:
+        rows = list(csv.reader(f))
+
+    if len(rows) <= 1:  # only header or empty
+        return
+
+    header, data = rows[0], rows[1:]
+    if len(data) > MAX_ENTRIES:
+        data = data[-MAX_ENTRIES:]  # keep only last 60
+
+        with open(COUNTS_HISTORY_FILE, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
+            writer.writerows(data)
 
 
 def generate_graph():
@@ -41,4 +62,5 @@ def generate_graph():
 
 
 if __name__ == "__main__":
+    trim_history()
     generate_graph()

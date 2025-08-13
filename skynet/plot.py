@@ -3,7 +3,7 @@ import csv
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 import requests
@@ -14,6 +14,7 @@ COUNTS_HISTORY_FILE = "ip_counts_history.csv"
 GRAPH_FILE = "ip_counts_graph.png"
 
 MAX_THREADS = 8
+MAX_ENTRIES = 60
 
 
 def fetch_url_content(url):
@@ -32,27 +33,52 @@ def extract_ips_from_text(text):
     return set(ip_pattern.findall(text))
 
 
+def trim_history():
+    """Keep only the last MAX_ENTRIES rows in the history CSV"""
+    if not os.path.isfile(COUNTS_HISTORY_FILE):
+        return
+
+    with open(COUNTS_HISTORY_FILE, "r", encoding="utf-8") as f:
+        rows = list(csv.reader(f))
+
+    if len(rows) <= 1:  # only header or empty
+        return
+
+    header, data = rows[0], rows[1:]
+    if len(data) > MAX_ENTRIES:
+        data = data[-MAX_ENTRIES:]  # keep only last 60
+
+        with open(COUNTS_HISTORY_FILE, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
+            writer.writerows(data)
+
+
 def log_count_to_history(date_str, unique_count):
     rows = []
     if os.path.isfile(COUNTS_HISTORY_FILE):
         with open(COUNTS_HISTORY_FILE, "r", encoding="utf-8") as f:
             rows = list(csv.DictReader(f))
-    threshold_date = datetime.strptime(date_str, "%Y-%m-%d") - timedelta(days=30)
-    filtered_rows = [r for r in rows if datetime.strptime(r["date"], "%Y-%m-%d") >= threshold_date]
 
     updated = False
-    for r in filtered_rows:
+    for r in rows:
         if r["date"] == date_str:
             r["unique_ips"] = str(unique_count)
             updated = True
             break
     if not updated:
-        filtered_rows.append({"date": date_str, "unique_ips": str(unique_count)})
+        rows.append({"date": date_str, "unique_ips": str(unique_count)})
+
+    # sort by date ascending
+    rows_sorted = sorted(rows, key=lambda x: x["date"])
 
     with open(COUNTS_HISTORY_FILE, "w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["date", "unique_ips"])
         writer.writeheader()
-        writer.writerows(sorted(filtered_rows, key=lambda x: x["date"]))
+        writer.writerows(rows_sorted)
+
+    # Trim to last MAX_ENTRIES
+    trim_history()
 
 
 def generate_graph():
