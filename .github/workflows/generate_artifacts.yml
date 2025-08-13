@@ -118,7 +118,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add -f adaway/unified_hosts.txt
-          git add -f adaway/counts_history.png
+          git add -f adaway/counts_history.csv
           git add -f adaway/counts_graph.png
           git add -f skynet/ip_counts_history.csv
           git add -f skynet/ip_counts_graph.png

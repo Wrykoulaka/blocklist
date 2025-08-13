@@ -1,6 +1,6 @@
 # Ignore generated artifacts
 adaway/unified_hosts.txt
-adaway/counts_history.png
+adaway/counts_history.csv
 adaway/counts_graph.png
 skynet/ip_counts_history.csv
 skynet/ip_counts_graph.png
