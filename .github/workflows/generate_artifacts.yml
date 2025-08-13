@@ -2,15 +2,12 @@ name: Generate Artifacts
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # Every 6 hours
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-    env:
-      VENV_PATH: /tmp/venv
-      PATH: /tmp/venv/bin:${{ env.PATH }}  # Prepend venv to PATH for all steps
 
     steps:
       # 1. Checkout main branch
@@ -20,26 +17,40 @@ jobs:
           fetch-depth: 0
           ref: main
 
-      # 2. Set up venv outside repo to survive branch cleaning
-      - name: Set up venv
-        run: python3 -m venv $VENV_PATH
+      # 2. Setup Python 3.x
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
 
-      # 3. Cache pip downloads to speed up installs
-      - name: Cache pip
+      # 3. Get Python version for cache key
+      - name: Get Python version
+        id: python-version
+        run: echo "version=$(python3 -c 'import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")')" >> $GITHUB_OUTPUT
+
+      # 4. Cache the entire venv
+      - name: Cache venv
+        id: cache-venv
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          path: /tmp/venv
+          key: ${{ runner.os }}-venv-py${{ steps.python-version.outputs.version }}-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-venv-py${{ steps.python-version.outputs.version }}-
 
-      # 4. Install dependencies in /tmp/venv
-      - name: Install dependencies
+      # 5. Set up venv if cache missed
+      - name: Set up venv
+        if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python3 -m venv /tmp/venv
+          /tmp/venv/bin/pip install --upgrade pip
+          /tmp/venv/bin/pip install -r requirements.txt
 
-      # 5. Backup scripts before branch switch
+      # 6. Add venv to PATH globally for all steps
+      - name: Add venv to PATH
+        run: echo "/tmp/venv/bin" >> $GITHUB_PATH
+
+      # 7. Backup scripts before branch switch
       - name: Backup scripts
         run: |
           mkdir -p /tmp/scripts
@@ -47,7 +58,7 @@ jobs:
           cp -r skynet /tmp/scripts/
           cp requirements.txt /tmp/scripts/
 
-      # 6. Switch to autogen-artifacts branch
+      # 8. Switch to autogen-artifacts branch
       - name: Switch to autogen-artifacts branch
         run: |
           git fetch origin
@@ -57,30 +68,30 @@ jobs:
             git checkout --orphan autogen-artifacts
           fi
 
-      # 7. Backup CSV files
+      # 9. Backup CSV files
       - name: Backup CSV
         run: |
           mkdir -p /tmp/backup
           cp skynet/ip_counts_history.csv /tmp/backup/ 2>/dev/null || true
           cp adaway/counts_history.csv /tmp/backup/ 2>/dev/null || true
 
-      # 8. Clean branch except .git
+      # 10. Clean branch except .git
       - name: Clean branch
         run: |
           find . -mindepth 1 ! -path './.git*' -delete
 
-      # 9. Restore scripts from main branch backup
+      # 11. Restore scripts
       - name: Restore scripts
         run: cp -r /tmp/scripts/* ./
 
-      # 10. Restore CSV
+      # 12. Restore CSV
       - name: Restore CSV
         run: |
           mkdir -p adaway skynet
           cp /tmp/backup/ip_counts_history.csv skynet/ 2>/dev/null || true
           cp /tmp/backup/counts_history.csv adaway/ 2>/dev/null || true
 
-      # 11. Run adaway scripts
+      # 13. Run adaway scripts
       - name: Run main.py script
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -92,7 +103,7 @@ jobs:
         working-directory: adaway
         run: python3 plot.py
 
-      # 12. Run skynet scripts
+      # 14. Run skynet scripts
       - name: Run bash update.sh
         working-directory: skynet
         run: bash update.sh
@@ -101,7 +112,7 @@ jobs:
         working-directory: skynet
         run: python3 plot.py
 
-      # 13. Commit and push changes
+      # 15. Commit and push changes
       - name: Commit and push autogen-artifacts files
         run: |
           git config --global user.name "github-actions[bot]"
