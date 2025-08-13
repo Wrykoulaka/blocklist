@@ -50,73 +50,65 @@ jobs:
       - name: Add venv to PATH
         run: echo "/tmp/venv/bin" >> $GITHUB_PATH
 
-      # 7. Backup scripts before branch switch
-      - name: Backup scripts
-        run: |
-          mkdir -p /tmp/scripts
-          cp -r adaway /tmp/scripts/
-          cp -r skynet /tmp/scripts/
-          cp requirements.txt /tmp/scripts/
-
-      # 8. Switch to autogen-artifacts branch
+      # 7. Switch to autogen-artifacts branch (fresh history)
       - name: Switch to autogen-artifacts branch
         run: |
           git fetch origin
           if git ls-remote --exit-code --heads origin autogen-artifacts; then
-            git checkout autogen-artifacts
+            git checkout --orphan autogen-artifacts
           else
             git checkout --orphan autogen-artifacts
           fi
+          git reset --hard
+          git clean -fdx
 
-      # 9. Backup CSV files
-      - name: Backup CSV
+      # 8. Copy scripts (from main) into branch
+      - name: Copy scripts
         run: |
-          mkdir -p /tmp/backup
-          cp skynet/ip_counts_history.csv /tmp/backup/ 2>/dev/null || true
-          cp adaway/counts_history.csv /tmp/backup/ 2>/dev/null || true
+          cp -r adaway skynet requirements.txt ./
 
-      # 10. Clean branch except .git
-      - name: Clean branch
-        run: |
-          find . -mindepth 1 ! -path './.git*' -delete
-
-      # 11. Restore scripts
-      - name: Restore scripts
-        run: cp -r /tmp/scripts/* ./
-
-      # 12. Restore CSV
-      - name: Restore CSV
+      # 9. Restore CSV if exists
+      - name: Restore CSV files
         run: |
           mkdir -p adaway skynet
-          cp /tmp/backup/ip_counts_history.csv skynet/ 2>/dev/null || true
-          cp /tmp/backup/counts_history.csv adaway/ 2>/dev/null || true
+          if [ -f skynet/ip_counts_history.csv ]; then
+            cp skynet/ip_counts_history.csv skynet/
+          fi
+          if [ -f adaway/counts_history.csv ]; then
+            cp adaway/counts_history.csv adaway/
+          fi
 
-      # 13. Run adaway scripts
-      - name: Run main.py script
+      # 10. Run adaway scripts
+      - name: Run adaway main.py
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         working-directory: adaway
         run: python3 main.py
 
-      - name: Run plot.py script
+      - name: Run adaway plot.py
         working-directory: adaway
         run: python3 plot.py
 
-      # 14. Run skynet scripts
-      - name: Run bash update.sh
+      # 11. Run skynet scripts
+      - name: Run skynet update.sh
         working-directory: skynet
         run: bash update.sh
 
-      - name: Run plot.py script
+      - name: Run skynet plot.py
         working-directory: skynet
         run: python3 plot.py
 
-      # 15. Commit and push changes
-      - name: Commit and push autogen-artifacts files
+      # 12. Commit and push all generated files (including ignored)
+      - name: Commit and push autogen-artifacts
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f adaway/unified_hosts.txt
+          git add -f adaway/counts_history.png
+          git add -f adaway/counts_graph.png
+          git add -f skynet/ip_counts_history.csv
+          git add -f skynet/ip_counts_graph.png
           git add .
-          git commit -m "Update hosts and filter files" || echo "No changes to commit"
+          git commit -m "Update generated hosts and filter files" || echo "No changes to commit"
           git push origin autogen-artifacts --force
