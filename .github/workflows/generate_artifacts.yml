@@ -24,6 +24,34 @@ jobs:
         run: |
           pip install -r requirements.txt
 
+      # Switch to autogen-artifacts branch, preserving CSV
+      - name: Switch to autogen-artifacts branch
+        run: |
+          git fetch origin
+          if git show-ref --verify --quiet refs/heads/autogen-artifacts; then
+            git checkout autogen-artifacts
+          else
+            git checkout --orphan autogen-artifacts
+            mkdir -p adaway skynet
+          fi
+
+      # Save existing CSV before cleaning
+      - name: Backup CSV
+        run: |
+          mkdir -p /tmp/backup
+          cp skynet/ip_counts_history.csv /tmp/backup/ 2>/dev/null || true
+          cp adaway/counts_history.csv /tmp/backup/ 2>/dev/null || true
+      - name: Clean branch
+        run: |
+          find . -mindepth 1 -delete
+
+      # Restore CSV so it’s used by generation scripts
+      - name: Restore CSV
+        run: |
+          mkdir -p skynet
+          cp /tmp/backup/ip_counts_history.csv skynet/ 2>/dev/null || true
+          cp /tmp/backup/counts_history.csv adaway/ 2>/dev/null || true
+
       - name: Run main.py script
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -43,33 +71,10 @@ jobs:
         working-directory: skynet
         run: python3 plot.py
 
-      - name: Switch to generated branch (or create it)
-        run: |
-          git fetch origin
-          if git show-ref --verify --quiet refs/heads/generated; then
-            git checkout generated
-          else
-            git checkout --orphan generated
-            git reset --hard
-          fi
-
-      - name: Remove old files
-        run: |
-          git rm -rf .
-          git clean -fdx
-
-      - name: Copy generated artifacts
-        run: |
-          cp ../adaway/unified_hosts.txt adaway/unified_hosts.txt || true
-          cp ../adaway/counts_history.png adaway/counts_history.png || true
-          cp ../adaway/counts_graph.png adaway/counts_graph.png || true
-          cp ../skynet/ip_counts_history.csv skynet/ip_counts_history.csv || true
-          cp ../skynet/ip_counts_graph.png skynet/ip_counts_graph.png || true
-
-      - name: Commit and push generated files
+      - name: Commit and push autogen-artifacts files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -m "Update hosts and filter files" || echo "No changes to commit"
-          git push origin generated --force
+          git push origin autogen-artifacts --force
