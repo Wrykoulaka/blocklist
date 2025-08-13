@@ -122,5 +122,14 @@ jobs:
           git add -f adaway/counts_graph.png
           git add -f skynet/ip_counts_history.csv
           git add -f skynet/ip_counts_graph.png
-          git commit -m "Update hosts and filter files" || echo "No changes to commit"
+
+          # Check if there is a previous commit
+          if git rev-parse --verify HEAD >/dev/null 2>&1; then
+            # Amend the previous commit with updated timestamp and message
+            git commit --amend -m "Update hosts and filter files" --no-edit --date=now
+          else
+            # No previous commit, do a normal commit
+            git commit -m "Update hosts and filter files"
+          fi
+
           git push origin autogen-artifacts --force
