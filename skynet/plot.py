@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-import os
-import subprocess
-import re
 import csv
-from datetime import datetime, timedelta
-import requests
+import os
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
+
 import matplotlib.pyplot as plt
+import requests
 
 FILTER_FILE = "filter.list"
 
@@ -14,6 +14,7 @@ COUNTS_HISTORY_FILE = "ip_counts_history.csv"
 GRAPH_FILE = "ip_counts_graph.png"
 
 MAX_THREADS = 8
+
 
 def fetch_url_content(url):
     try:
@@ -25,12 +26,11 @@ def fetch_url_content(url):
         print(f"[ERROR] Failed to fetch {url}: {e}")
         return ""
 
+
 def extract_ips_from_text(text):
-    ip_pattern = re.compile(
-        r"\b(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}"
-        r"(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\b"
-    )
+    ip_pattern = re.compile(r"\b(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}" r"(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\b")
     return set(ip_pattern.findall(text))
+
 
 def log_count_to_history(date_str, unique_count):
     rows = []
@@ -54,6 +54,7 @@ def log_count_to_history(date_str, unique_count):
         writer.writeheader()
         writer.writerows(sorted(filtered_rows, key=lambda x: x["date"]))
 
+
 def generate_graph():
     dates, counts = [], []
     if not os.path.isfile(COUNTS_HISTORY_FILE):
@@ -73,7 +74,7 @@ def generate_graph():
         print("No data to plot.")
         return
     plt.figure(figsize=(8, 4))
-    plt.plot(dates, counts, marker='o', linestyle='-', color='green')
+    plt.plot(dates, counts, marker="o", linestyle="-", color="green")
     plt.title("Unique IP Addresses in Fetched Lists Over Time")
     plt.xlabel("Date")
     plt.ylabel("Number of Unique IPs")
@@ -83,8 +84,9 @@ def generate_graph():
     plt.close()
     print(f"Graph saved to {GRAPH_FILE}")
 
+
 def main():
-    try:      
+    try:
         if not os.path.isfile(FILTER_FILE):
             print(f"No filter list file found: {FILTER_FILE}")
             return
@@ -111,6 +113,7 @@ def main():
     except Exception as e:
         print(f"Error: {e}")
         raise
+
 
 if __name__ == "__main__":
     main()

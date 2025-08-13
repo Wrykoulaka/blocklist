@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
+import csv
 import os
-import requests
-from io import StringIO
+import re
 import sys
 import traceback
-from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import re
-import csv
+from datetime import datetime, timedelta
+from io import StringIO
+
 import matplotlib.pyplot as plt
+import requests
 
 # Load environment variables
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -22,6 +23,7 @@ SOURCE_LIST_URL = "https://v.firebog.net/hosts/lists.php?type=tick"
 COUNTS_HISTORY_FILE = "counts_history.csv"
 GRAPH_FILE = "counts_graph.png"
 
+
 def send_telegram_message(message):
     if not TELEGRAM_BOT_TOKEN or not CHAT_ID:
         print("[WARNING] Telegram bot token or chat ID not set. Skipping notification.")
@@ -34,13 +36,14 @@ def send_telegram_message(message):
     except Exception as e:
         print(f"[ERROR] Failed to send Telegram message: {e}")
 
+
 def update_sources_file():
     try:
         print(f"Fetching source list from {SOURCE_LIST_URL}")
         resp = requests.get(SOURCE_LIST_URL, timeout=20)
         resp.raise_for_status()
         content = resp.text
-        
+
         with open(SOURCES_FILE, "w", encoding="utf-8") as f:
             f.write(content)
         print(f"Updated {SOURCES_FILE} with content from {SOURCE_LIST_URL}")
@@ -63,6 +66,7 @@ def update_sources_file():
         send_telegram_message(error_message)
         sys.exit(1)
 
+
 def load_urls(file_path):
     urls = []
     try:
@@ -78,6 +82,7 @@ def load_urls(file_path):
         sys.exit(1)
     return urls
 
+
 def download_list(url):
     try:
         print(f"Downloading: {url}")
@@ -89,6 +94,7 @@ def download_list(url):
         print(error_message)
         send_telegram_message(error_message)
         return url, ""
+
 
 def normalize_adblock_line(line):
     if line.startswith("||"):
@@ -105,6 +111,7 @@ def normalize_adblock_line(line):
         if re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", line):
             return line.lower()
     return None
+
 
 def parse_hosts(text):
     domains = set()
@@ -125,6 +132,7 @@ def parse_hosts(text):
         if candidate:
             domains.add(candidate)
     return domains
+
 
 def log_count_to_history(date_str, count):
     history = []
@@ -159,6 +167,7 @@ def log_count_to_history(date_str, count):
         writer.writeheader()
         for row in history:
             writer.writerow({"date": row["date"], "unique_domains": row["unique_domains"]})
+
 
 def main():
     try:
@@ -218,6 +227,7 @@ def main():
         error_details = "".join(traceback.format_exception(*sys.exc_info()))
         send_telegram_message(f"Github action blocklist error\n⚠️ *Script Error*\n```\n{error_details}\n```")
         raise
+
 
 if __name__ == "__main__":
     main()

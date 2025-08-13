@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-import os
 import csv
+import os
 from datetime import datetime
+
 import matplotlib.pyplot as plt
 
 COUNTS_HISTORY_FILE = "counts_history.csv"
 GRAPH_FILE = "counts_graph.png"
+
 
 def generate_graph():
     dates = []
@@ -27,7 +29,7 @@ def generate_graph():
         print("No data to plot.")
         return
     plt.figure(figsize=(8, 4))
-    plt.plot(dates, counts, marker='o', linestyle='-', color='blue')
+    plt.plot(dates, counts, marker="o", linestyle="-", color="blue")
     plt.title("Unique Domains in unified_hosts.txt Over Time")
     plt.xlabel("Date")
     plt.ylabel("Number of Unique Domains")
@@ -36,6 +38,7 @@ def generate_graph():
     plt.savefig(GRAPH_FILE)
     plt.close()
     print(f"Graph saved to {GRAPH_FILE}")
+
 
 if __name__ == "__main__":
     generate_graph()

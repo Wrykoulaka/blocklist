@@ -1,0 +1,75 @@
+name: Generate Artifacts
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # We’ll need the full history if we want orphan branches
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run main.py script
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        working-directory: adaway
+        run: python3 main.py
+
+      - name: Run plot.py script
+        working-directory: adaway
+        run: python3 plot.py
+
+      - name: Run Bash script
+        working-directory: skynet
+        run: bash update.sh
+
+      - name: Run plot.py script
+        working-directory: skynet
+        run: python3 plot.py
+
+      - name: Switch to generated branch (or create it)
+        run: |
+          git fetch origin
+          if git show-ref --verify --quiet refs/heads/generated; then
+            git checkout generated
+          else
+            git checkout --orphan generated
+            git reset --hard
+          fi
+
+      - name: Remove old files
+        run: |
+          git rm -rf .
+          git clean -fdx
+
+      - name: Copy generated artifacts
+        run: |
+          cp ../adaway/unified_hosts.txt adaway/unified_hosts.txt || true
+          cp ../adaway/counts_history.png adaway/counts_history.png || true
+          cp ../adaway/counts_graph.png adaway/counts_graph.png || true
+          cp ../skynet/ip_counts_history.csv skynet/ip_counts_history.csv || true
+          cp ../skynet/ip_counts_graph.png skynet/ip_counts_graph.png || true
+
+      - name: Commit and push generated files
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Update hosts and filter files" || echo "No changes to commit"
+          git push origin generated --force
