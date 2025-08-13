@@ -10,26 +10,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout main branch (scripts live here)
+      # 1. Checkout main branch
       - name: Checkout main
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: main
 
-      # Cache pip dependencies
-      - name: Cache pip dependencies
+      # 2. Set up Python virtual environment
+      - name: Set up venv
+        run: python3 -m venv .venv
+
+      # 3. Cache virtual environment
+      - name: Cache venv
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          path: .venv
+          key: ${{ runner.os }}-venv-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-venv-
 
+      # 4. Upgrade pip and install dependencies in venv
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      # 2. Save scripts somewhere safe before branch switch
+      # 5. Backup scripts before branch switch
       - name: Backup scripts
         run: |
           mkdir -p /tmp/scripts
@@ -37,7 +45,7 @@ jobs:
           cp -r skynet /tmp/scripts/
           cp requirements.txt /tmp/scripts/
 
-      # 3. Switch/create autogen-artifacts branch
+      # 6. Switch to autogen-artifacts branch
       - name: Switch to autogen-artifacts branch
         run: |
           git fetch origin
@@ -47,52 +55,57 @@ jobs:
             git checkout --orphan autogen-artifacts
           fi
 
-      # 4. Backup CSV before cleaning
+      # 7. Backup CSV files
       - name: Backup CSV
         run: |
           mkdir -p /tmp/backup
           cp skynet/ip_counts_history.csv /tmp/backup/ 2>/dev/null || true
           cp adaway/counts_history.csv /tmp/backup/ 2>/dev/null || true
 
-      # 5. Clean branch but keep .git
+      # 8. Clean branch except .git
       - name: Clean branch
         run: |
           find . -mindepth 1 ! -path './.git*' -delete
 
-      # 6. Restore scripts from main branch backup
+      # 9. Restore scripts from main branch backup
       - name: Restore scripts
-        run: |
-          cp -r /tmp/scripts/* ./
+        run: cp -r /tmp/scripts/* ./
 
-      # 7. Restore CSV
+      # 10. Restore CSV
       - name: Restore CSV
         run: |
           mkdir -p adaway skynet
           cp /tmp/backup/ip_counts_history.csv skynet/ 2>/dev/null || true
           cp /tmp/backup/counts_history.csv adaway/ 2>/dev/null || true
 
-      # 8. Run adaway scripts
+      # 11. Run adaway scripts
       - name: Run main.py script
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         working-directory: adaway
-        run: python3 main.py
+        run: |
+          source ../.venv/bin/activate
+          python3 main.py
 
-      - name: Run adaway plot.py script
+      - name: Run plot.py script
         working-directory: adaway
-        run: python3 plot.py
+        run: |
+          source ../.venv/bin/activate
+          python3 plot.py
 
-      # 9. Run skynet scripts
-      - name: Run skynet bash script
+      # 12. Run skynet scripts
+      - name: Run bash update.sh
         working-directory: skynet
         run: bash update.sh
 
-      - name: Run skynet plot.py script
+      - name: Run plot.py script
         working-directory: skynet
-        run: python3 plot.py
+        run: |
+          source ../.venv/bin/activate
+          python3 plot.py
 
-      # 10. Commit and push changes
+      # 13. Commit and push changes
       - name: Commit and push autogen-artifacts files
         run: |
           git config --global user.name "github-actions[bot]"
