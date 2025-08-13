@@ -2,7 +2,7 @@ name: Generate Artifacts
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours
+    - cron: '0 */6 * * *' # Every 6 hours
   workflow_dispatch:
 
 jobs:
@@ -10,48 +10,62 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Checkout the repository
       - name: Checkout main
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # We’ll need the full history if we want orphan branches
+          fetch-depth: 0
 
+      # Set up Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
+      # Cache pip dependencies
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-      # Switch to autogen-artifacts branch, preserving CSV
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Switch to autogen-artifacts branch (safer method)
       - name: Switch to autogen-artifacts branch
         run: |
           git fetch origin
-          if git show-ref --verify --quiet refs/heads/autogen-artifacts; then
+          if git ls-remote --exit-code --heads origin autogen-artifacts; then
+            git fetch origin autogen-artifacts:autogen-artifacts
             git checkout autogen-artifacts
           else
             git checkout --orphan autogen-artifacts
             mkdir -p adaway skynet
           fi
 
-      # Save existing CSV before cleaning
+      # Backup CSV files
       - name: Backup CSV
         run: |
           mkdir -p /tmp/backup
           cp skynet/ip_counts_history.csv /tmp/backup/ 2>/dev/null || true
           cp adaway/counts_history.csv /tmp/backup/ 2>/dev/null || true
+
+      # Clean branch but keep .git
       - name: Clean branch
         run: |
-          find . -mindepth 1 -delete
+          find . -mindepth 1 ! -path './.git*' -delete
 
-      # Restore CSV so it’s used by generation scripts
+      # Restore CSVs and ensure directories exist
       - name: Restore CSV
         run: |
-          mkdir -p skynet
+          mkdir -p adaway skynet
           cp /tmp/backup/ip_counts_history.csv skynet/ 2>/dev/null || true
           cp /tmp/backup/counts_history.csv adaway/ 2>/dev/null || true
 
+      # Run adaway scripts
       - name: Run main.py script
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -59,18 +73,20 @@ jobs:
         working-directory: adaway
         run: python3 main.py
 
-      - name: Run plot.py script
+      - name: Run adaway plot.py script
         working-directory: adaway
         run: python3 plot.py
 
-      - name: Run Bash script
+      # Run skynet scripts
+      - name: Run skynet bash script
         working-directory: skynet
         run: bash update.sh
 
-      - name: Run plot.py script
+      - name: Run skynet plot.py script
         working-directory: skynet
         run: python3 plot.py
 
+      # Commit and push changes
       - name: Commit and push autogen-artifacts files
         run: |
           git config --global user.name "github-actions[bot]"
