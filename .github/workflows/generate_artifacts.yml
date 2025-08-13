@@ -10,17 +10,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the repository
+      # 1. Checkout main branch (scripts live here)
       - name: Checkout main
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      # Set up Python
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
+          ref: main
 
       # Cache pip dependencies
       - name: Cache pip dependencies
@@ -34,38 +29,49 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # Switch to autogen-artifacts branch (safer method)
+      # 2. Save scripts somewhere safe before branch switch
+      - name: Backup scripts
+        run: |
+          mkdir -p /tmp/scripts
+          cp -r adaway /tmp/scripts/
+          cp -r skynet /tmp/scripts/
+          cp requirements.txt /tmp/scripts/
+
+      # 3. Switch/create autogen-artifacts branch
       - name: Switch to autogen-artifacts branch
         run: |
           git fetch origin
           if git ls-remote --exit-code --heads origin autogen-artifacts; then
-            git fetch origin autogen-artifacts:autogen-artifacts
             git checkout autogen-artifacts
           else
             git checkout --orphan autogen-artifacts
-            mkdir -p adaway skynet
           fi
 
-      # Backup CSV files
+      # 4. Backup CSV before cleaning
       - name: Backup CSV
         run: |
           mkdir -p /tmp/backup
           cp skynet/ip_counts_history.csv /tmp/backup/ 2>/dev/null || true
           cp adaway/counts_history.csv /tmp/backup/ 2>/dev/null || true
 
-      # Clean branch but keep .git
+      # 5. Clean branch but keep .git
       - name: Clean branch
         run: |
           find . -mindepth 1 ! -path './.git*' -delete
 
-      # Restore CSVs and ensure directories exist
+      # 6. Restore scripts from main branch backup
+      - name: Restore scripts
+        run: |
+          cp -r /tmp/scripts/* ./
+
+      # 7. Restore CSV
       - name: Restore CSV
         run: |
           mkdir -p adaway skynet
           cp /tmp/backup/ip_counts_history.csv skynet/ 2>/dev/null || true
           cp /tmp/backup/counts_history.csv adaway/ 2>/dev/null || true
 
-      # Run adaway scripts
+      # 8. Run adaway scripts
       - name: Run main.py script
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -77,7 +83,7 @@ jobs:
         working-directory: adaway
         run: python3 plot.py
 
-      # Run skynet scripts
+      # 9. Run skynet scripts
       - name: Run skynet bash script
         working-directory: skynet
         run: bash update.sh
@@ -86,7 +92,7 @@ jobs:
         working-directory: skynet
         run: python3 plot.py
 
-      # Commit and push changes
+      # 10. Commit and push changes
       - name: Commit and push autogen-artifacts files
         run: |
           git config --global user.name "github-actions[bot]"
