@@ -122,6 +122,5 @@ jobs:
           git add -f adaway/counts_graph.png
           git add -f skynet/ip_counts_history.csv
           git add -f skynet/ip_counts_graph.png
-          git add .
           git commit -m "Update hosts and filter files" || echo "No changes to commit"
           git push origin autogen-artifacts --force
