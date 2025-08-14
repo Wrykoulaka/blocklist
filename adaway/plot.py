@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
 COUNTS_HISTORY_FILE = "counts_history.csv"
 GRAPH_FILE = "counts_graph.png"
@@ -50,11 +51,15 @@ def generate_graph():
         print("No data to plot.")
         return
 
-    latest_value = counts[-1]
+    latest_value = f"{counts[-1]:,}"
     latest_date = dates[-1].strftime("%Y-%m-%d")
 
     plt.figure(figsize=(8, 4))
     plt.plot(dates, counts, marker="o", linestyle="-", color="blue")
+
+    # Format y-axis with commas
+    plt.gca().yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
+
     plt.title(f"Unique Domains Over Time (Latest: {latest_value} on {latest_date})")
     plt.xlabel("Date")
     plt.ylabel("Unique Domains")
