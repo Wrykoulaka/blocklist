@@ -99,11 +99,15 @@ def generate_graph():
     if not dates:
         print("No data to plot.")
         return
+
+    latest_value = counts[-1]
+    latest_date = dates[-1].strftime("%Y-%m-%d")
+
     plt.figure(figsize=(8, 4))
     plt.plot(dates, counts, marker="o", linestyle="-", color="green")
-    plt.title("Unique IP Addresses in Fetched Lists Over Time")
+    plt.title(f"Unique IPs Over Time (Latest: {latest_value} on {latest_date})")
     plt.xlabel("Date")
-    plt.ylabel("Number of Unique IPs")
+    plt.ylabel("Unique IPs")
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(GRAPH_FILE)

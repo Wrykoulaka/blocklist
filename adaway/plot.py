@@ -49,11 +49,15 @@ def generate_graph():
     if not dates:
         print("No data to plot.")
         return
+
+    latest_value = counts[-1]
+    latest_date = dates[-1].strftime("%Y-%m-%d")
+
     plt.figure(figsize=(8, 4))
     plt.plot(dates, counts, marker="o", linestyle="-", color="blue")
-    plt.title("Unique Domains in unified_hosts.txt Over Time")
+    plt.title(f"Unique Domains Over Time (Latest: {latest_value} on {latest_date})")
     plt.xlabel("Date")
-    plt.ylabel("Number of Unique Domains")
+    plt.ylabel("Unique Domains")
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(GRAPH_FILE)
