@@ -34,9 +34,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/venv
-          key: ${{ runner.os }}-venv-py${{ steps.python-version.outputs.version }}-${{ hashFiles('**/requirements.txt') }}
+          key: ${{ runner.os }}-venv-py${{ steps.python-version.outputs.version }}-${{ hashFiles('requirements.txt') }}
           restore-keys: |
-            ${{ runner.os }}-venv-py${{ steps.python-version.outputs.version }}-
+            ${{ runner.os }}-venv-py${{ steps.python-version.outputs.version }}-${{ hashFiles('requirements.txt') }}
 
       # 5. Set up venv if cache missed
       - name: Set up venv
