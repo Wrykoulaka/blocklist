@@ -26,7 +26,7 @@ jobs:
       # 3. Get Python version for cache key
       - name: Get Python version
         id: python-version
-        run: echo "version=$(python3 -c 'import sys; print("{}.{}".format(sys.version_info.major, sys.version_info.minor))')" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(python3 -c 'import sys; print("{}.{}.{}".format(sys.version_info.major, sys.version_info.minor, sys.version_info.micro))')" >> "$GITHUB_OUTPUT"
 
       # 4. Cache the entire venv
       - name: Cache venv
