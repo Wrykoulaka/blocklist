@@ -62,6 +62,7 @@ def generate_graph():
 
     plt.title(f"Unique Domains Over Time (Latest: {latest_value} on {latest_date})")
     plt.xlabel("Date")
+    plt.xticks(rotation=90)
     plt.ylabel("Unique Domains")
     plt.grid(True)
     plt.tight_layout()

@@ -112,6 +112,7 @@ def generate_graph():
 
     plt.title(f"Unique IPs Over Time (Latest: {latest_value} on {latest_date})")
     plt.xlabel("Date")
+    plt.xticks(rotation=90)
     plt.ylabel("Unique IPs")
     plt.grid(True)
     plt.tight_layout()
