@@ -115,24 +115,22 @@ jobs:
         run: python3 plot.py
 
       # 15. Commit and push changes
-      - name: Commit and push autogen-artifacts files
+- name: Commit and push autogen-artifacts files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Reset branch to orphan state (no parents)
+          git checkout --orphan temp-branch
           git add -f adaway/unified_hosts.txt
           git add -f adaway/counts_history.csv
           git add -f adaway/counts_graph.png
-          git add -f adaway/error_tracker.json   # <--- add this line
+          git add -f adaway/error_tracker.json
           git add -f skynet/ip_counts_history.csv
           git add -f skynet/ip_counts_graph.png
 
-          # Check if there is a previous commit
-          if git rev-parse --verify HEAD >/dev/null 2>&1; then
-            # Amend the previous commit with updated timestamp and message
-            git commit --amend -m "Update hosts and filter files" --no-edit --date=now
-          else
-            # No previous commit, do a normal commit
-            git commit -m "Update hosts and filter files"
-          fi
+          git commit -m "Update hosts and filter files"
 
+          # Replace autogen-artifacts with this single commit
+          git branch -M autogen-artifacts
           git push origin autogen-artifacts --force
