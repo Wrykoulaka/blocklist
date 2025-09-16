@@ -68,12 +68,13 @@ jobs:
             git checkout --orphan autogen-artifacts
           fi
 
-      # 9. Backup CSV files
-      - name: Backup CSV
+      # 9. Backup CSV and JSON files
+      - name: Backup state files
         run: |
           mkdir -p /tmp/backup
           cp skynet/ip_counts_history.csv /tmp/backup/ 2>/dev/null || true
           cp adaway/counts_history.csv /tmp/backup/ 2>/dev/null || true
+          cp adaway/error_tracker.json /tmp/backup/ 2>/dev/null || true
 
       # 10. Clean branch except .git
       - name: Clean branch
@@ -84,12 +85,13 @@ jobs:
       - name: Restore scripts
         run: cp -r /tmp/scripts/* ./
 
-      # 12. Restore CSV
-      - name: Restore CSV
+      # 12. Restore CSV and JSON
+      - name: Restore state files
         run: |
           mkdir -p adaway skynet
           cp /tmp/backup/ip_counts_history.csv skynet/ 2>/dev/null || true
           cp /tmp/backup/counts_history.csv adaway/ 2>/dev/null || true
+          cp /tmp/backup/error_tracker.json adaway/ 2>/dev/null || true
 
       # 13. Run adaway scripts
       - name: Run main.py script
@@ -120,6 +122,7 @@ jobs:
           git add -f adaway/unified_hosts.txt
           git add -f adaway/counts_history.csv
           git add -f adaway/counts_graph.png
+          git add -f adaway/error_tracker.json   # <--- add this line
           git add -f skynet/ip_counts_history.csv
           git add -f skynet/ip_counts_graph.png
 
