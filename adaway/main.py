@@ -3,6 +3,7 @@ import csv
 import os
 import re
 import sys
+import json
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
@@ -22,8 +23,10 @@ SOURCE_LIST_URL = "https://v.firebog.net/hosts/lists.php?type=tick"
 
 COUNTS_HISTORY_FILE = "counts_history.csv"
 GRAPH_FILE = "counts_graph.png"
+ERROR_TRACKER_FILE = "error_tracker.json"
 
 
+# ---------------- Telegram ----------------
 def send_telegram_message(message):
     if not TELEGRAM_BOT_TOKEN or not CHAT_ID:
         print("[WARNING] Telegram bot token or chat ID not set. Skipping notification.")
@@ -37,6 +40,59 @@ def send_telegram_message(message):
         print(f"[ERROR] Failed to send Telegram message: {e}")
 
 
+# ---------------- Error tracker ----------------
+def load_error_tracker():
+    if os.path.isfile(ERROR_TRACKER_FILE):
+        with open(ERROR_TRACKER_FILE, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return {}
+    return {}
+
+def save_error_tracker(data):
+    with open(ERROR_TRACKER_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+def should_skip_url(url, tracker):
+    info = tracker.get(url, {})
+    skip_until = info.get("skip_until")
+    if skip_until:
+        try:
+            skip_date = datetime.strptime(skip_until, "%Y-%m-%d").date()
+            if skip_date > datetime.utcnow().date():
+                print(f"[INFO] Skipping {url} (blocked until {skip_until})")
+                return True
+        except ValueError:
+            pass
+    return False
+
+def record_result(url, success, tracker):
+    entry = tracker.get(url, {"consecutive_errors": 0, "skip_until": None})
+    if success:
+        if entry["consecutive_errors"] > 0 or entry["skip_until"]:
+            msg = f"[INFO] {url} recovered successfully. Resetting error count."
+            print(msg)
+            send_telegram_message(msg)
+        entry["consecutive_errors"] = 0
+        entry["skip_until"] = None
+    else:
+        entry["consecutive_errors"] += 1
+        count = entry["consecutive_errors"]
+        if count < 3:
+            msg = f"[WARNING] {url} failed ({count}/3)."
+            print(msg)
+            send_telegram_message(msg)
+        else:
+            skip_date = (datetime.utcnow().date() + timedelta(days=60)).strftime("%Y-%m-%d")
+            entry["skip_until"] = skip_date
+            msg = f"[WARNING] {url} failed 3 times. It will be skipped until {skip_date}."
+            print(msg)
+            send_telegram_message(msg)
+    tracker[url] = entry
+
+
+# ---------------- Sources ----------------
 def update_sources_file():
     try:
         print(f"Fetching source list from {SOURCE_LIST_URL}")
@@ -83,6 +139,7 @@ def load_urls(file_path):
     return urls
 
 
+# ---------------- Download & Parse ----------------
 def download_list(url):
     try:
         print(f"Downloading: {url}")
@@ -92,7 +149,6 @@ def download_list(url):
     except Exception as e:
         error_message = f"[ERROR] Could not download {url}: {e}"
         print(error_message)
-        send_telegram_message(error_message)
         return url, ""
 
 
@@ -134,6 +190,7 @@ def parse_hosts(text):
     return domains
 
 
+# ---------------- History ----------------
 def log_count_to_history(date_str, count):
     history = []
     cutoff_date = datetime.utcnow().date() - timedelta(days=30)
@@ -169,6 +226,7 @@ def log_count_to_history(date_str, count):
             writer.writerow({"date": row["date"], "unique_domains": row["unique_domains"]})
 
 
+# ---------------- Main ----------------
 def main():
     try:
         update_sources_file()
@@ -177,8 +235,16 @@ def main():
         all_domains = set()
         domains_per_source = {}
 
+        error_tracker = load_error_tracker()
+
         with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-            futures = {executor.submit(download_list, url): url for url in urls}
+            futures = {}
+            for url in urls:
+                if should_skip_url(url, error_tracker):
+                    domains_per_source[url] = 0
+                    continue
+                futures[executor.submit(download_list, url)] = url
+
             for future in as_completed(futures):
                 url = futures[future]
                 try:
@@ -187,13 +253,18 @@ def main():
                         domains = parse_hosts(text)
                         domains_per_source[url] = len(domains)
                         all_domains.update(domains)
+                        record_result(url, True, error_tracker)
                     else:
                         domains_per_source[url] = 0
+                        record_result(url, False, error_tracker)
                 except Exception as e:
                     msg = f"[ERROR] Exception processing {url}: {e}"
                     print(msg)
                     send_telegram_message(msg)
                     domains_per_source[url] = 0
+                    record_result(url, False, error_tracker)
+
+        save_error_tracker(error_tracker)
 
         total_unique = len(all_domains)
         released_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
