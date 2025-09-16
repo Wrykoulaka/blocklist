@@ -54,41 +54,36 @@ def save_error_tracker(data):
     with open(ERROR_TRACKER_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-def should_skip_url(url, tracker):
-    info = tracker.get(url, {})
-    skip_until = info.get("skip_until")
-    if skip_until:
-        try:
-            skip_date = datetime.strptime(skip_until, "%Y-%m-%d").date()
-            if skip_date > datetime.utcnow().date():
-                print(f"[INFO] Skipping {url} (blocked until {skip_until})")
-                return True
-        except ValueError:
-            pass
-    return False
-
 def record_result(url, success, tracker):
-    entry = tracker.get(url, {"consecutive_errors": 0, "skip_until": None})
+    entry = tracker.get(url, {"consecutive_errors": 0, "notified_block": False})
+    
     if success:
-        if entry["consecutive_errors"] > 0 or entry["skip_until"]:
+        if entry["consecutive_errors"] > 0:
             msg = f"[INFO] {url} recovered successfully. Resetting error count."
             print(msg)
             send_telegram_message(msg)
         entry["consecutive_errors"] = 0
-        entry["skip_until"] = None
+        entry["notified_block"] = False
+
     else:
         entry["consecutive_errors"] += 1
         count = entry["consecutive_errors"]
+
         if count < 3:
             msg = f"[WARNING] {url} failed ({count}/3)."
             print(msg)
             send_telegram_message(msg)
-        else:
-            skip_date = (datetime.utcnow().date() + timedelta(days=60)).strftime("%Y-%m-%d")
-            entry["skip_until"] = skip_date
-            msg = f"[WARNING] {url} failed 3 times. It will be skipped until {skip_date}."
+
+        elif count == 3 and not entry.get("notified_block", False):
+            msg = f"[WARNING] {url} failed 3 times. Further failures will be silent until recovery."
             print(msg)
             send_telegram_message(msg)
+            entry["notified_block"] = True
+
+        else:
+            # Too many failures → stay silent, just log
+            print(f"[INFO] {url} still failing ({count} consecutive). No notification sent.")
+
     tracker[url] = entry
 
 
@@ -238,12 +233,7 @@ def main():
         error_tracker = load_error_tracker()
 
         with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-            futures = {}
-            for url in urls:
-                if should_skip_url(url, error_tracker):
-                    domains_per_source[url] = 0
-                    continue
-                futures[executor.submit(download_list, url)] = url
+            futures = {executor.submit(download_list, url): url for url in urls}
 
             for future in as_completed(futures):
                 url = futures[future]
