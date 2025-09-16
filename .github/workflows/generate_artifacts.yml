@@ -115,7 +115,7 @@ jobs:
         run: python3 plot.py
 
       # 15. Commit and push changes
-- name: Commit and push autogen-artifacts files
+      - name: Commit and push autogen-artifacts files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
